@@ -103,6 +103,20 @@ public class L1Attack {
     private L1ItemInstance _arrow = null;
     private L1ItemInstance _sting = null;
     private int _leverage = 10; // 1/10倍表現する。
+    
+    // weapon types for clarity
+    private short SWORD = 4;
+    private short BLUNT = 11;
+    private short BOW = 20;
+    private short SPEAR_CHAIN = 24;
+    private short STAFF = 40;
+    private short DAGGER = 46;
+    private short TWOHANDSWORD = 50;
+    private short EDORYU = 54;
+    private short KIRI_CLAW = 58;
+    private short GAUNTLET = 62;
+    private short ARROW = 66;
+    private short THROWING = 2922;
 
     public void setLeverage(int i) {
         _leverage = i;
@@ -157,20 +171,21 @@ public class L1Attack {
                 if (_weaponType == 0) {
                     _weaponEnchant = 0;
                 }
-                if (_weaponType != 20 && _weaponType != 62) {
+                if (_weaponType != BOW && _weaponType != GAUNTLET) {
                     _weaponEnchant = weapon.getEnchantLevel() - weapon.get_durability(); // Damage minus
                 } else {
                     _weaponEnchant = weapon.getEnchantLevel();
                 }
                 _weaponMaterial = weapon.getItem().getMaterial();
-                if (_weaponType == 20) { // Get Arrow
+                
+                if (_weaponType == BOW) { // bow
                     _arrow = _pc.getInventory().getArrow();
                     if (_arrow != null) {
                         _weaponBless = _arrow.getItem().getBless();
                         _weaponMaterial = _arrow.getItem().getMaterial();
                     }
                 }
-                if (_weaponType == 62) { // Get sting
+                if (_weaponType == GAUNTLET) { // Get sting
                     _sting = _pc.getInventory().getSting();
                     if (_sting != null) {
                         _weaponBless = _sting.getItem().getBless();
@@ -178,19 +193,23 @@ public class L1Attack {
                     }
                 }
                 _weaponDoubleDmgChance = weapon.getItem().getDoubleDmgChance();
-                //System.out.println("getDoubleDmgChance " + _weaponDoubleDmgChance);
                 _weaponAttrLevel = weapon.getAttrEnchantLevel();
             }
             
-            // Additional damage compensation from stats
-            if (_weaponType == 20 || _weaponType == 62) { // for range
-                _statsBonusDamage = CalcStat.calcBaseDamageFromDex(_pc.getAbility().getTotalDex()) + CalcStat.calcDEXBonusDamage(_pc.getAbility().getTotalDex());
+            // bonus damage from stats
+            if (_weaponType == BOW || _weaponType == GAUNTLET) { // range
+                //_statsBonusDamage = CalcStat.calcBaseDamageFromDex(_pc.getAbility().getTotalDex()) + CalcStat.calcDEXBonusDamage(_pc.getAbility().getTotalDex());
+                _statsBonusDamage = CalcStat.calcPureDEXBonusDamage(_pc.getAbility().getBaseDex());
+                System.out.println("ranged pure stat bonus: " + _statsBonusDamage);
             } else if (_weaponType2 == 17) { // for kiringku
                 _statsBonusDamage = CalcStat.calcINTMagicDamage(_pc.getAbility().getTotalInt()) 
                 		+ CalcStat.calcINTMagicBonus(0, _pc.getAbility().getTotalInt())
                 		+ CalcStat.calcPureIntBonus(_pc.getAbility().getBaseInt());
+                //System.out.println("weaponType kiringku bonus: " + _statsBonusDamage);
             } else { // all others
-                _statsBonusDamage = CalcStat.calcSTRDamageUp(_pc.getAbility().getTotalStr()) + CalcStat.calcSTRBonusDamage(_pc.getAbility().getBaseStr());
+                //_statsBonusDamage = CalcStat.calcBaseDamageFromSTR(_pc.getAbility().getTotalStr()) + CalcStat.calcSTRBonusDamage(_pc.getAbility().getBaseStr());
+                _statsBonusDamage = CalcStat.calcSTRBonusDamage(_pc.getAbility().getBaseStr());
+                //System.out.println("weaponType other bonus: " + _statsBonusDamage);
             }
         } else if (attacker instanceof L1NpcInstance) {
             _npc = (L1NpcInstance) attacker;
@@ -224,7 +243,7 @@ public class L1Attack {
                     _isHit = false;
                 } else if (!_pc.glanceCheck(_targetX, _targetY)) {
 					_isHit = false;
-                } else if ((_weaponType == 20 || _weaponType == 62) && _target.hasSkillEffect(L1SkillId.MOBIUS)) {
+                } else if ((_weaponType == 20 || _weaponType == GAUNTLET) && _target.hasSkillEffect(L1SkillId.MOBIUS)) {
                 	_isHit = false;
 				} else {
                     _isHit = true;
@@ -240,7 +259,7 @@ public class L1Attack {
             if (!(_pc instanceof L1RobotInstance) && _weaponType == 20 && _weaponId != 190 && _weaponId != 10000
                     && _weaponId != 202011 && _arrow == null) {
                 _isHit = false; // If there is no arrow, make a mistake
-            } else if (_weaponType == 62 && _sting == null) {
+            } else if (_weaponType == GAUNTLET && _sting == null) {
                 _isHit = false; // If there is no sting, make a mistake
             } else if (!_pc.glanceCheck(_targetX, _targetY)) {
                 _isHit = false; // Obstacle determination if the attacker is a player
@@ -310,7 +329,7 @@ public class L1Attack {
             return false;
         
         if (_targetPc.hasSkillEffect(L1SkillId.MOBIUS)) {
-        	if (_weaponType == 20 || _weaponType == 62) {
+        	if (_weaponType == BOW || _weaponType == GAUNTLET) {
                 return false;
         	}
         }
@@ -344,7 +363,7 @@ public class L1Attack {
             }
         }
 
-        _hitRate = _pc.getLevel() / 5;
+        //_hitRate = _pc.getLevel() / 5;
         _hitRate += pcAddHit();
         
         int attackerDice = _random.nextInt(10) + _hitRate;
@@ -366,30 +385,32 @@ public class L1Attack {
             return false;
         }
 
-        if (_pc.getLocation().getLineDistance(_targetPc.getLocation()) >= 3 && _weaponType != 20 && _weaponType != 62) {
+        if (_pc.getLocation().getLineDistance(_targetPc.getLocation()) >= 3 && _weaponType != 20 && _weaponType != GAUNTLET) {
             _hitRate = 0;
         }
         
         int rnd = _random.nextInt(100) + 1; // hit chance controller
         
         // In the case of a bow, even if it hits, avoid it from the ER again.
-        if (_weaponType == 20 && _hitRate > rnd) {
-        	System.out.println("ranged attack");
+        if (_weaponType == BOW && _hitRate > rnd) {
             return calcErEvasion();
         }
         
         // melee avoidance based off DG
-        if (_weaponType != 20 || _weaponType != 62 || _weaponType2 != 17) {
+        if (_weaponType != BOW || _weaponType != GAUNTLET || _weaponType2 != 17) {
 		    if (_targetPc.getDg() < 0) {
 			    int chance = ThreadLocalRandom.current().nextInt(100) + 1;
 		        int dg = _targetPc.getDg() * 10;
+		        int positiveDodge = Math.abs(dg);
 		        int targetAc = (_targetPc.getAC().getAc() + 100) / 20;
-		    	if (targetAc < 0) {
-		    		dg += targetAc;
-				}
-		        if (chance <= dg) {
-		        	return false;
-		        }
+		        int positiveNumber = Math.abs(targetAc);
+		        
+	            if (positiveNumber > 0) {
+	            	positiveDodge += targetAc;
+	            }
+	            if (chance <= positiveDodge) {
+	                return false;
+	            }
 		    } else if (_targetPc.getDg() > 0) { // dodge will be negative
 		    	_hitRate += _targetPc.getDg() * 1;
 		    }
@@ -402,7 +423,7 @@ public class L1Attack {
             if ((_jX > 3 || _jX < -3) && (_jY > 3 || _jY < -3)) {
                 _hitRate = 0;
             }
-        } else if (_weaponType == 20 || _weaponType == 62) { // bow
+        } else if (_weaponType == 20 || _weaponType == GAUNTLET) { // bow
             if ((_jX > 15 || _jX < -15) && (_jY > 15 || _jY < -15)) {
                 _hitRate = 0;
             }
@@ -440,7 +461,7 @@ public class L1Attack {
         }
         // SPR check
 
-        _hitRate = _pc.getLevel();
+        //_hitRate = _pc.getLevel();
         _hitRate += pcAddHit();
 
         if (_targetNpc.getAc() < 0) {
@@ -465,7 +486,7 @@ public class L1Attack {
             if ((_jX > 3 || _jX < -3) && (_jY > 3 || _jY < -3)) {
                 _hitRate = 0;
             }
-        } else if (_weaponType == 20 || _weaponType == 62) { // When it's a bow
+        } else if (_weaponType == 20 || _weaponType == GAUNTLET) { // When it's a bow
             if ((_jX > 15 || _jX < -15) && (_jY > 15 || _jY < -15)) {
                 _hitRate = 0;
             }
@@ -559,24 +580,34 @@ public class L1Attack {
         }
         
         // melee avoidance
-		if (_npc.getNpcTemplate().get_ranged() <= 2 && _npc.getLocation().getTileLineDistance(new Point(_targetX, _targetY)) <= 2) {
-
-			// melee avoidance according to DG value **/
-		    if (_targetPc.getDg() > 0) {
+		if (_npc.getNpcTemplate().get_ranged() <= 3 && _npc.getLocation().getTileLineDistance(new Point(_targetX, _targetY)) <= 3) {
+			// melee avoidance according to DG value
+		    if (_targetPc.getDg() < 0) {
 			    int chance = ThreadLocalRandom.current().nextInt(100) + 1;
-		        int dg = _targetPc.getDg();
-		        if (chance <= dg) {
-		        	return false;
-		        }
-		    } else if (_targetPc.getDg() < 0) { //if negative
+		        int dg = _targetPc.getDg() * 10;
+		        int positiveDodge = Math.abs(dg);
+		        int targetAc = (_targetPc.getAC().getAc() + 100) / 20;
+		        int positiveNumber = Math.abs(targetAc);
+		        
+	            if (positiveNumber > 0) {
+	            	positiveDodge += targetAc;
+	            }
+	            if (chance <= positiveDodge) {
+	                return false;
+	            }
+		    } else if (_targetPc.getDg() > 0) { // if negative
 		    	_hitRate += _targetPc.getDg() * -1;
 		    }
 		}
 		
-        return _hitRate >= rnd;
+        if (_hitRate >= rnd) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
-    // ●●●● Hit judgment from NPC to NPC ●●●●
+    // Hit from NPC to NPC
     private boolean calcNpcNpcHit() {
         int target_ac = 10 - _targetNpc.getAC().getAc();
         int attacker_lvl = _npc.getNpcTemplate().get_level();
@@ -620,22 +651,32 @@ public class L1Attack {
             switch (_calcType) {
             case PC_PC:
                 _damage = calcPcPcDamage();
-                // Titan Rock: reflect melee attack when HP is less than 40%.
-                if (_weaponType != 20 && _weaponType != 62 && _weaponType2 != 17 && _weaponType2 != 19) { // Activate lock if there is no bow
+
+                if (_weaponType != 20 && _weaponType != GAUNTLET && _weaponType2 != 17 && _weaponType2 != 19) { // Activate if no bow
                     if (SkillsTable.getInstance().spellCheck(_targetPc.getId(), L1SkillId.PASSIVE_TITAN_ROCK)) {
-                        int percent = (int) Math.round(((double) _targetPc.getCurrentHp() / (double) _targetPc.getMaxHp()) * 100);
-                        //int chance = _random.nextInt(100) + 1;
-                        int chance = ThreadLocalRandom.current().nextInt(100) + 1;
-                        int lockSection = 0;
-                        if (_target.getLockSectionUp() != 0) {
-                            lockSection += _target.getLockSectionUp();
+                        int percentCurrentHP = (int) Math.round(((double) _targetPc.getCurrentHp() / (double) _targetPc.getMaxHp()) * 100);
+                        int percentHPtoStartPassive = 40;
+                        int randomChance = ThreadLocalRandom.current().nextInt(100) + 1;
+                        int hpBonusToStart = 0;
+                        int procRate = 12;
+                        int targetLevel = _target.getLevel();
+                        
+                        if (_target.getTitanPassiveUp() != 0) {
+                            hpBonusToStart += _target.getTitanPassiveUp();
                         }
+                        
+                        if (targetLevel >= 90) {
+                        	if (targetLevel >= 98)
+                        		procRate += 8;
+                        	else
+                        		procRate += targetLevel - 90;
+                        }
+                        
                         if (_targetPc.isWarrior() && _targetPc.getEquipSlot().getWeaponCount() == 2) {
                             for (L1ItemInstance item2 : _targetPc.getInventory().getItems()) {
-                                if (item2 != null && item2.getItem().getType2() == 1
-                                		&& item2.getItem().getType() == 6 && item2.isEquipped()) {
-                                    if (item2.getItemId() == 202014) {
-                                        lockSection += 5;
+                                if (item2 != null && item2.getItem().getType2() == 1 && item2.getItem().getType() == 6 && item2.isEquipped()) {
+                                    if (item2.getItemId() == 202014) { // Titan's Rage
+                                        hpBonusToStart += 5;
                                     }
                                 }
                             }
@@ -643,44 +684,42 @@ public class L1Attack {
                             for (L1ItemInstance item : _targetPc.getInventory().getItems()) {
                                 if (_targetPc.getWeapon().equals(item)) {
                                     if (item.isEquipped()) {
-                                        if (item.getItemId() == 202014) {
-                                            lockSection += 5;
+                                        if (item.getItemId() == 202014) { // 
+                                            hpBonusToStart += 5;
                                         }
                                     }
                                 }
                             }
                         }
-                        if (!_targetPc.isstop() && percent <= (40 + lockSection + _targetPc.getRisingUp())
-                                && chance <= 20) {
-                            if (_targetPc.getInventory().checkItem(41246, 10)) {
+                        if (percentCurrentHP <= (percentHPtoStartPassive + hpBonusToStart + _targetPc.getTitanRisingBonus()) && randomChance <= procRate) {
+                            if (_targetPc.getInventory().checkItem(41246, 5)) { // crystal cost
                                 _pc.receiveCounterBarrierDamage(_targetPc, calcTitanDamage());
                                 _damage = 0;
                                 _targetPc.sendPackets(new S_SkillSound(_targetPc.getId(), 12555));
                                 _targetPc.broadcastPacket(new S_SkillSound(_targetPc.getId(), 12555));
-                                _targetPc.getInventory().consumeItem(41246, 10);
+                                _targetPc.getInventory().consumeItem(41246, 5);
                             } else {
                                 _targetPc.sendPackets(new S_SystemMessage("\\aBYou require more Crystal for Titan passives."));
                             }
                         }
                     }
-                } else { // If not, activate wavelet
+                } else {
                     if (_weaponType2 != 17 && _weaponType2 != 19) {
                         if (SkillsTable.getInstance().spellCheck(_targetPc.getId(), L1SkillId.PASSIVE_TITAN_BLITZ)) {
-                            int percent = (int) Math.round(((double) _targetPc.getCurrentHp() / (double) _targetPc.getMaxHp()) * 100);
-                            int chance = ThreadLocalRandom.current().nextInt(100) + 1;
-                            int lockSection = 0;
-                            if (_target.getLockSectionUp() != 0) {
-                                lockSection += _target.getLockSectionUp();
+                            int percentWarriorHP = (int) Math.round(((double) _targetPc.getCurrentHp() / (double) _targetPc.getMaxHp()) * 100);
+                            int percentHPtoStartPassive = 40;
+                            int randomChance = ThreadLocalRandom.current().nextInt(100) + 1;
+                            int hpBonusToStart = 0;
+                            
+                            if (_target.getTitanPassiveUp() != 0) {
+                                hpBonusToStart += _target.getTitanPassiveUp();
                             }
                             if (_targetPc.isWarrior() && _targetPc.getEquipSlot().getWeaponCount() == 2) {
 
                                 for (L1ItemInstance item2 : _targetPc.getInventory().getItems()) {
-                                    if (item2 != null
-                                    		&& item2.getItem().getType2() == 1
-                                    		&& item2.getItem().getType() == 6
-                                            && item2.isEquipped()) {
+                                    if (item2 != null && item2.getItem().getType2() == 1 && item2.getItem().getType() == 6 && item2.isEquipped()) {
                                         if (item2.getItemId() == 202014) {
-                                            lockSection += 5;
+                                            hpBonusToStart += 5;
                                         }
                                     }
                                 }
@@ -689,42 +728,41 @@ public class L1Attack {
                                     if (_targetPc.getWeapon().equals(item)) {
                                         if (item.isEquipped()) {
                                             if (item.getItemId() == 202014) {
-                                                lockSection +=5;
+                                                hpBonusToStart += 5;
                                             }
                                         }
                                     }
                                 }
                             }
 
-                            if (!_targetPc.isstop() && percent <= (40 + lockSection + _targetPc.getRisingUp()) && chance <= 20) {
-                                if (_targetPc.getInventory().checkItem(41246, 10)) {
+                            if (percentWarriorHP <= (percentHPtoStartPassive + hpBonusToStart + _targetPc.getTitanRisingBonus()) && randomChance <= 12) {
+                                if (_targetPc.getInventory().checkItem(41246, 5)) {
                                     _pc.receiveCounterBarrierDamage(_targetPc, calcTitanDamage());
                                     _damage = 0;
                                     _targetPc.sendPackets(new S_SkillSound(_targetPc.getId(), 12557));
                                     _targetPc.broadcastPacket(new S_SkillSound(_targetPc.getId(), 12557));
-                                    _targetPc.getInventory().consumeItem(41246, 10);
+                                    _targetPc.getInventory().consumeItem(41246, 5);
                                 } else {
                                     _targetPc.sendPackets(new S_SystemMessage("\\aBYou require more Crystal for Titan passives."));
                                 }
                             }
                         }
-                    } else { // If not, activate magic
+                    } else { // If not melee or range, check magic
                         if (SkillsTable.getInstance().spellCheck(_targetPc.getId(), L1SkillId.PASSIVE_TITAN_MAGIC)) {
-                            int percent = (int) Math.round(((double) _targetPc.getCurrentHp() / (double) _targetPc.getMaxHp()) * 100);
-                            int chance = ThreadLocalRandom.current().nextInt(100) + 1;
-                            int lockSection = 0;
-                            if (_target.getLockSectionUp() != 0) {
-                                lockSection += _target.getLockSectionUp();
+                            int percentCurrentHP = (int) Math.round(((double) _targetPc.getCurrentHp() / (double) _targetPc.getMaxHp()) * 100);
+                            int percentHPtoStartPassive = 40;
+                            int randomChance = ThreadLocalRandom.current().nextInt(100) + 1;
+                            int minHpBonusToStart = 0;
+                            
+                            if (_target.getTitanPassiveUp() != 0) {
+                                minHpBonusToStart += _target.getTitanPassiveUp();
                             }
 
                             if (_targetPc.isWarrior() && _targetPc.getEquipSlot().getWeaponCount() == 2) {
                                 for (L1ItemInstance item2 : _targetPc.getInventory().getItems()) {
-                                    if (item2 != null
-                                    		&& item2.getItem().getType2() == 1
-                                    		&& item2.getItem().getType() == 6
-                                            && item2.isEquipped()) {
+                                    if (item2 != null && item2.getItem().getType2() == 1 && item2.getItem().getType() == 6 && item2.isEquipped()) {
                                         if (item2.getItemId() == 202014) {
-                                            lockSection += 5;
+                                            minHpBonusToStart += 5;
                                         }
                                     }
                                 }
@@ -733,15 +771,15 @@ public class L1Attack {
                                     if (_targetPc.getWeapon().equals(item)) {
                                         if (item.isEquipped()) {
                                             if (item.getItemId() == 202014) {
-                                                lockSection += 5;
+                                                minHpBonusToStart += 5;
                                             }
                                         }
                                     }
                                 }
                             }
 
-                            if (!_targetPc.isstop() && percent <= (40 + lockSection + _targetPc.getRisingUp()) && chance <= 20) {
-                                if (_targetPc.getInventory().checkItem(41246, 10)) {
+                            if (percentCurrentHP <= (percentHPtoStartPassive + minHpBonusToStart + _targetPc.getTitanRisingBonus()) && randomChance <= 12) {
+                                if (_targetPc.getInventory().checkItem(41246, 5)) {
                                     if (_calcType == 1)
                                         _pc.receiveCounterBarrierDamage(_targetPc, calcTitanDamage());
                                     else if (_calcType == 2)
@@ -749,9 +787,9 @@ public class L1Attack {
                                     _damage = 0;
                                     _targetPc.sendPackets(new S_SkillSound(_targetPc.getId(), 12559));
                                     _targetPc.broadcastPacket(new S_SkillSound(_targetPc.getId(), 12559));
-                                    _targetPc.getInventory().consumeItem(41246, 10);
+                                    _targetPc.getInventory().consumeItem(41246, 5);
                                 } else {
-                                    _targetPc.sendPackets(new S_SystemMessage("\\aBYou require more Crystal for Titan passives."));
+                                	_targetPc.sendPackets(new S_SystemMessage("\\aBYou require more crystals for Titan passives."));
                                 }
                             }
                         }
@@ -764,24 +802,33 @@ public class L1Attack {
                 break;
             case NPC_PC:
                 _damage = calcNpcPcDamage();
-                // Titan Lock: Probabilistically reflects melee attacks when HP is less than 40%.
+
                 int bowactid = _npc.getNpcTemplate().getBowActId();
                 if (bowactid != 66) {
                     if (SkillsTable.getInstance().spellCheck(_targetPc.getId(), L1SkillId.PASSIVE_TITAN_ROCK)) {
-                        int percent = (int) Math.round(((double) _targetPc.getCurrentHp() / (double) _targetPc.getMaxHp()) * 100);
-                        int chance = _random.nextInt(100) + 1;
-                        int lockSection = 0;
-                        if (_target.getLockSectionUp() != 0) {
-                            lockSection += _target.getLockSectionUp();
+                    	int percentCurrentHP = (int) Math.round(((double) _targetPc.getCurrentHp() / (double) _targetPc.getMaxHp()) * 100);
+                        int percentHPtoStartPassive = 40;
+                        int randomChance = ThreadLocalRandom.current().nextInt(100) + 1;
+                        int bonusHPtoStart = 0;
+                        int targetLevel = _targetPc.getLevel();
+                        int procRate = 12;
+                        
+                        if (_target.getTitanPassiveUp() != 0) {
+                        	bonusHPtoStart += _target.getTitanPassiveUp();
+                        }
+                        
+                        if (targetLevel >= 90) { // new titan rock bonus
+                        	if (targetLevel >= 98)
+                        		procRate += 8;
+                        	else
+                        		procRate += targetLevel - 90;
                         }
 
                         if (_targetPc.isWarrior() && _targetPc.getEquipSlot().getWeaponCount() == 2) {
-
                             for (L1ItemInstance item2 : _targetPc.getInventory().getItems()) {
-                                if (item2 != null && item2.getItem().getType2() == 1 && item2.getItem().getType() == 6
-                                        && item2.isEquipped()) {
+                                if (item2 != null && item2.getItem().getType2() == 1 && item2.getItem().getType() == 6 && item2.isEquipped()) {
                                     if (item2.getItemId() == 202014) {
-                                        lockSection += 5;
+                                    	bonusHPtoStart += 5;
                                     }
                                 }
                             }
@@ -790,41 +837,39 @@ public class L1Attack {
                                 if (_targetPc.getWeapon().equals(item)) {
                                     if (item.isEquipped()) {
                                         if (item.getItemId() == 202014) {
-                                            lockSection += 5;
+                                        	bonusHPtoStart += 5;
                                         }
                                     }
                                 }
                             }
                         }
-                        if (!_targetPc.isstop() && percent <= (40 + lockSection + _targetPc.getRisingUp()) && chance <= 35) {
-                            if (_targetPc.getInventory().checkItem(41246, 10)) {
+                        if (percentCurrentHP <= (percentHPtoStartPassive + bonusHPtoStart + _targetPc.getTitanRisingBonus()) && randomChance <= procRate) {
+                            if (_targetPc.getInventory().checkItem(41246, 5)) {
                                 _npc.receiveCounterBarrierDamage(_targetPc, calcTitanDamage());
                                 _damage = 0;
                                 _targetPc.sendPackets(new S_SkillSound(_targetPc.getId(), 12555));
-                                // _targetPc.broadcastPacket(new
-                                // S_SkillSound(_targetPc.getId(), 12555));
-                                _targetPc.getInventory().consumeItem(41246, 10);
+                                _targetPc.getInventory().consumeItem(41246, 5);
                             } else {
-                                _targetPc.sendPackets(new S_SystemMessage("Titan Lock: You require more stones for Titan Passives."));
+                            	_targetPc.sendPackets(new S_SystemMessage("\\aBYou require more crystals for Titan passives."));
                             }
                         }
                     }
                 } else {
-                    // Titan Wave: Probabilistically reflects ranged attacks when HP is less than 40%
                     if (SkillsTable.getInstance().spellCheck(_targetPc.getId(), L1SkillId.PASSIVE_TITAN_BLITZ)) {
-                        int percent = (int) Math.round(((double) _targetPc.getCurrentHp() / (double) _targetPc.getMaxHp()) * 100);
-                        int chance = _random.nextInt(100) + 1;
-                        int lockSection = 0;
-                        if (_target.getLockSectionUp() != 0) {
-                            lockSection += _target.getLockSectionUp();
+                        int percentCurrentHP = (int) Math.round(((double) _targetPc.getCurrentHp() / (double) _targetPc.getMaxHp()) * 100);
+                        int percentHPtoStartPassive = 40;
+                        int randomChance = _random.nextInt(100) + 1;
+                        int minHpBonusToStart = 0;
+                        
+                        if (_target.getTitanPassiveUp() != 0) {
+                            minHpBonusToStart += _target.getTitanPassiveUp();
                         }
+                        
                         if (_targetPc.isWarrior() && _targetPc.getEquipSlot().getWeaponCount() == 2) {
-
                             for (L1ItemInstance item2 : _targetPc.getInventory().getItems()) {
-                                if (item2 != null && item2.getItem().getType2() == 1
-                                		&& item2.getItem().getType() == 6 && item2.isEquipped()) {
+                                if (item2 != null && item2.getItem().getType2() == 1 && item2.getItem().getType() == 6 && item2.isEquipped()) {
                                     if (item2.getItemId() == 202014) {
-                                        lockSection += 5;
+                                        minHpBonusToStart += 5;
                                     }
                                 }
                             }
@@ -833,24 +878,21 @@ public class L1Attack {
                                 if (_targetPc.getWeapon().equals(item)) {
                                     if (item.isEquipped()) {
                                         if (item.getItemId() == 202014) {
-                                            lockSection +=5;
+                                            minHpBonusToStart += 5;
                                         }
                                     }
                                 }
                             }
                         }
 
-                        if (!_targetPc.isstop() && percent <= (40 + lockSection + _targetPc.getRisingUp())
-                                && chance <= 35) {
-                            if (_targetPc.getInventory().checkItem(41246, 10)) {
+                        if (percentCurrentHP <= (percentHPtoStartPassive + minHpBonusToStart + _targetPc.getTitanRisingBonus()) && randomChance <= 12) {
+                            if (_targetPc.getInventory().checkItem(41246, 5)) {
                                 _npc.receiveCounterBarrierDamage(_targetPc, calcTitanDamage());
                                 _damage = 0;
                                 _targetPc.sendPackets(new S_SkillSound(_targetPc.getId(), 12557));
-                                // _targetPc.broadcastPacket(new
-                                // S_SkillSound(_targetPc.getId(), 12557));
-                                _targetPc.getInventory().consumeItem(41246, 10);
+                                _targetPc.getInventory().consumeItem(41246, 5);
                             } else {
-                                _targetPc.sendPackets(new S_SystemMessage("Titan Wave: You require more stones for Titan Passives."));
+                            	_targetPc.sendPackets(new S_SystemMessage("\\aBYou require more crystals for Titan passives."));
                             }
                         }
                     }
@@ -881,7 +923,7 @@ public class L1Attack {
 
         // over enchant buffs 2018
         if (_weaponType != 0) {
-            if (_weaponId != 66) {
+            if (_weaponId != ARROW) {
                 switch (weapon.getEnchantLevel()) {
                 case 10:
                 	weaponTotalBonus += 1;
@@ -910,12 +952,10 @@ public class L1Attack {
             }
         }
         
-        if (_weaponType != 20 && _weaponType != 62) { // PvP not bow/gauntlet
-        	weaponDamageOut += _statsBonusDamage + _pc.getDmgup() + _pc.getDmgRate();
-        	//System.out.println("_statsBonusDamage " + weaponDamageOut);
+        if (_weaponType != BOW && _weaponType != GAUNTLET) {
+        	weaponDamageOut += _statsBonusDamage + _pc.getDmgup();
         } else {
-        	weaponDamageOut += _statsBonusDamage + _pc.getBowDmgup() + _pc.getBowDmgRate();
-        	//System.out.println("Range _statsBonusDamage " + weaponDamageOut);
+        	weaponDamageOut += _statsBonusDamage + _pc.getBowDmgup();
         }
         
         if (_weaponId == 203018) { // Roar Edoryu
@@ -937,7 +977,7 @@ public class L1Attack {
         }
 
         if (_pc.hasSkillEffect(SOUL_OF_FLAME)) {
-            if (_weaponType != 20 && _weaponType != 62) {
+            if (_weaponType != 20 && _weaponType != GAUNTLET) {
                 weaponDamageOut += maxWeaponSmallDamage + weaponTotalBonus;
             }
         }
@@ -952,8 +992,8 @@ public class L1Attack {
          */
         
        if (_weaponType != 0) { // not fists
-            if (_weaponType != 20 && _weaponType != 62 && _weaponType != 17) { // not ranged or kiringku
-                int bonusChanceToCrit = CalcStat.calcChanceToCritSTR(_pc.getAbility().getTotalStr()) + _pc.getDmgCritical();
+            if (_weaponType != 20 && _weaponType != GAUNTLET && _weaponType != 17) { // not ranged or kiringku
+                int bonusChanceToCrit = CalcStat.calcChanceToCritSTR(_pc.getAbility().getBaseStr()) + _pc.getDmgCritical();
                 int calcRandomChanceToCrit = _random.nextInt(100) + 1;
 
                 // Strike of Valakas
@@ -975,7 +1015,7 @@ public class L1Attack {
                     _isCritical = true;
                 }
             } else {
-                int bowBonusChanceToCrit = CalcStat.calcBowCritical(_pc.getAbility().getTotalDex()) + _pc.getBowDmgCritical();
+                int bowBonusChanceToCrit = CalcStat.calcBowCritical(_pc.getAbility().getBaseDex()) + _pc.getBowDmgCritical();
                 int calcBowRandomChanceToCrit = _random.nextInt(100) + 1;
                 
                 if (_pc.hasSkillEffect(EAGLE_EYE)) {
@@ -1010,7 +1050,7 @@ public class L1Attack {
             _pc.removeSkillEffect(L1SkillId.ASSASSIN);
         }
 
-        if (_weaponType == 54 && _pc.isDarkelf()) {
+        if (_weaponType == EDORYU && _pc.isDarkelf()) {
             if (_pc.hasSkillEffect(L1SkillId.BLAZING_SPIRITS)) {
             	weaponDamageOut *= 2.5;
                 _targetPc.sendPackets(new S_SkillSound(_targetPc.getId(), 14547));
@@ -1018,13 +1058,13 @@ public class L1Attack {
                 _pc.sendPackets(new S_AttackCritical(_pc, _targetId, 54));
                 Broadcaster.broadcastPacket(_pc, new S_AttackCritical(_pc, _targetId, 54));
             } else if ((_random.nextInt(100) + 1) <= (_weaponDoubleDmgChance - weapon.get_durability())) {
-            	weaponDamageOut *= 2.5;
+            	weaponDamageOut *= 2;
                 _pc.sendPackets(new S_SkillSound(_pc.getId(), 3398));
                 _pc.broadcastPacket(new S_SkillSound(_pc.getId(), 3398));
             }
         }
 
-        if (_pc.hasSkillEffect(DOUBLE_BREAK) && (_weaponType == 54 || _weaponType == 58)) { // Double brake probability
+        if (_pc.hasSkillEffect(DOUBLE_BREAK) && (_weaponType == EDORYU || _weaponType == KIRI_CLAW)) { // Double brake probability
 			int rnd = 25;
 			switch (_pc.getLevel()) {
 			case 98:
@@ -1076,7 +1116,7 @@ public class L1Attack {
 			}
         }
 
-        if (_weaponType == 20) { // bow
+        if (_weaponType == BOW) {
             if (_arrow != null) {
                 int add_dmg = _arrow.getItem().getDmgSmall();
                 if (add_dmg == 0) {
@@ -1092,7 +1132,7 @@ public class L1Attack {
         } else if (_pc.getTempCharGfx() == 202011) { // Gaia's rage
             dmg = dmg + _random.nextInt(15);
 
-        } else if (_weaponType == 62) { // Cancer tote red
+        } else if (_weaponType == GAUNTLET) { // Cancer tote red
             int add_dmg = _sting.getItem().getDmgSmall();
             if (add_dmg == 0) {
                 add_dmg = 1;
@@ -1136,7 +1176,7 @@ public class L1Attack {
         
         // Burning spirits, elemental fire, brave mental, BLOW_ATTACK 1.5 times skill effect and ivy part
         int skillCriticalBuff = _random.nextInt(100) + 1;
-        if (_weaponType != 20 && _weaponType != 62 && _weaponType2 != 17) {
+        if (_weaponType != 20 && _weaponType != GAUNTLET && _weaponType2 != 17) {
             if (_pc.hasSkillEffect(ELEMENTAL_FIRE) || _pc.hasSkillEffect(BRAVE_MENTAL) || _pc.hasSkillEffect(QUAKE)) {
                 if (skillCriticalBuff <= 12) {
                 	if (_calcType == PC_PC) {
@@ -1160,9 +1200,9 @@ public class L1Attack {
             		dmg *= 1.5;
             	}
             } else if (_pc.hasSkillEffect(BLOW_ATTACK)) { // PvP
-            	int blowAttackChance = Config.BLOW_ATTACK_PROC; // default 5%
+            	int blowAttackChance = 5; // default 5%
     			if (_pc.getLevel() >= 75) {
-    				blowAttackChance = blowAttackChance + (_pc.getLevel() - 74); // 1% added when level 75 or higher
+    				blowAttackChance += (_pc.getLevel() - 74); // 1% added when level 75 or higher
     			}
     			if (blowAttackChance > 20) {
     				blowAttackChance = 20;
@@ -1180,7 +1220,7 @@ public class L1Attack {
             }
         }
         
-        if (_pc.hasSkillEffect(CYCLONE) && (_weaponType == 20 || _weaponType == 62 || _weaponType == 17)) {
+        if (_pc.hasSkillEffect(CYCLONE) && (_weaponType == 20 || _weaponType == GAUNTLET || _weaponType == 17)) {
 			int cycloneProcChance = 5;
 			if (_pc.getLevel() > 75) {
 				cycloneProcChance = cycloneProcChance + (_pc.getLevel() - 75); // 1% added at level 75 and above
@@ -1420,7 +1460,7 @@ public class L1Attack {
 //			dmg -= dmg2 > 0 ? dmg2 : 0;
 //		}
         
-//        if (_pc.hasSkillEffect(BLOW_ATTACK) && _weaponType != 20 && _weaponType != 62) {
+//        if (_pc.hasSkillEffect(BLOW_ATTACK) && _weaponType != 20 && _weaponType != GAUNTLET) {
 //        	int chance = Config.BLOW_ATTACK_PROC;
 //			if (_pc.getLevel() >= 75) {
 //				chance = chance + (_pc.getLevel() - 74); // 1% added when level 75 or higher
@@ -1560,7 +1600,7 @@ public class L1Attack {
             dmg = 0;
         }
         
-        if ((_weaponType == 20 && _weaponType == 62) && _targetPc.hasSkillEffect(MOBIUS)) {
+        if ((_weaponType == 20 && _weaponType == GAUNTLET) && _targetPc.hasSkillEffect(MOBIUS)) {
         	dmg = 0;
         }
         if (_targetPc.hasSkillEffect(ICE_LANCE)) {
@@ -1582,7 +1622,7 @@ public class L1Attack {
         for (L1DollInstance doll : _pc.getDollList()) { // Magic Doll Additional damage from dolls
             if (doll == null)
                 continue;
-            if (_weaponType != 20 && _weaponType != 62) {
+            if (_weaponType != 20 && _weaponType != GAUNTLET) {
                 dmg += doll.getDamageByDoll();
             }
             dmg += doll.attackPixieDamage(_pc, _targetPc);
@@ -1714,7 +1754,7 @@ public class L1Attack {
         // dmg += Math.max(0, _pc.getLevel() - 70) * 1;
 
         if (_targetPc.hasSkillEffect(ARMOUR_BREAK)) {
-            if (_weaponType != 20 && _weaponType != 62) {
+            if (_weaponType != 20 && _weaponType != GAUNTLET) {
             	dmg = (dmg + 48) * 1.18;
             }
         }
@@ -1898,8 +1938,6 @@ public class L1Attack {
             }
         }
 
- 
-
         /** Damage reduction correction by AC**/
         if (dmg <= 0) {
             _isHit = false;
@@ -2020,10 +2058,10 @@ public class L1Attack {
             }
         }
         
-        if (_weaponType != 20 && _weaponType != 62) { // PvE not bow/gauntlet
-        	weaponTotalBonus += _statsBonusDamage + _pc.getDmgup() + _pc.getDmgRate();
+        if (_weaponType != BOW && _weaponType != GAUNTLET) { // PvE not bow/gauntlet
+        	weaponTotalBonus += _statsBonusDamage + _pc.getDmgup();
         } else {
-        	weaponTotalBonus += _statsBonusDamage + _pc.getBowDmgup() + _pc.getBowDmgRate();
+        	weaponTotalBonus += _statsBonusDamage + _pc.getBowDmgup();
         }
 
         if (_weaponType == 58) { // Claw PvE
@@ -2042,13 +2080,13 @@ public class L1Attack {
         }
         
         if (_pc.hasSkillEffect(SOUL_OF_FLAME)) {
-            if (_weaponType != 20 && _weaponType != 62) {
+            if (_weaponType != 20 && _weaponType != GAUNTLET) {
                 weaponDamageOut = maxWeaponDamage + weaponTotalBonus;
             }
         }
         if (_weaponType != 0) {
-            if (_weaponType != 20 && _weaponType != 62 && _weaponType != 17) { // melee distance
-                int criticalFromSTR = CalcStat.calcChanceToCritSTR(_pc.getAbility().getTotalStr()) + _pc.getDmgCritical();
+            if (_weaponType != BOW && _weaponType != GAUNTLET && _weaponType != 17) { // melee distance
+                int criticalFromSTR = CalcStat.calcChanceToCritSTR(_pc.getAbility().getBaseStr()) + _pc.getDmgCritical();
                 int chanceToCritical = _random.nextInt(100) + 1;
                 
                 // Strike of Valakas
@@ -2070,7 +2108,7 @@ public class L1Attack {
                     _isCritical = true;
                 }
             } else {
-                int bowCriticalBonus = CalcStat.calcBowCritical(_pc.getAbility().getTotalDex()) + _pc.getBowDmgCritical();
+                int bowCriticalBonus = CalcStat.calcBowCritical(_pc.getAbility().getBaseDex()) + _pc.getBowDmgCritical();
                 int bowChanceToCritical = _random.nextInt(100) + 1;
                 
                 if (_pc.hasSkillEffect(EAGLE_EYE)) {
@@ -2087,7 +2125,7 @@ public class L1Attack {
 
         //weaponTotalDamage += calcMaterialBlessDmg(); // Blessing damage bonus
 
-//        if (_pc.hasSkillEffect(QUAKE) && _weaponType != 20 && _weaponType != 62) {
+//        if (_pc.hasSkillEffect(QUAKE) && _weaponType != 20 && _weaponType != GAUNTLET) {
 //        	if ((_random.nextInt(100) + 1) <= 12) {
 //        		weaponTotalDamage *= 1.5;
 //            	System.out.println("Quake: " + weaponTotalDamage);
@@ -2098,9 +2136,8 @@ public class L1Attack {
             _weaponDoubleDmgChance += _pc.getWeapon().getEnchantLevel();
         }
 
-        if (_weaponType == 54 && (_random.nextInt(100) + 1) <= (_weaponDoubleDmgChance - weapon.get_durability())) { // standard edo crit
+        if (_weaponType == EDORYU && (_random.nextInt(100) + 1) <= (_weaponDoubleDmgChance - weapon.get_durability())) { // standard edo crit
         	weaponDamageOut *= 2; // pve
-            //System.out.println("EDO proc: " + weaponDamageOut);
             _pc.sendPackets(new S_SkillSound(_pc.getId(), 3398));
             _pc.broadcastPacket(new S_SkillSound(_pc.getId(), 3398));
         }
@@ -2131,11 +2168,6 @@ public class L1Attack {
 			
 			if ((_random.nextInt(100) + 1) <= rnd) { // PvE
 				weaponDamageOut *= 2;
-//				if (_pc.hasSkillEffect(BURNING_SPIRIT)) {
-//					_pc.sendPackets(new S_SkillSound(_targetPc.getId(), 6532));
-//					Broadcaster.broadcastPacket(_pc, new S_SkillSound(_targetPc.getId(), 6532));
-//					}
-				//System.out.println("DoubleBreak proc: " + weaponDamageOut);
 				}
 			}
 
@@ -2181,7 +2213,7 @@ public class L1Attack {
             } else if (_weaponId == 190 || _weaponId == 10000 || _weaponId == 202011) { // Saiha's bow
                 dmg = dmg + _random.nextInt(15) + 4;
             }
-        } else if (_weaponType == 62) { // gauntlet
+        } else if (_weaponType == GAUNTLET) {
             int add_dmg = 0;
             if (_targetNpc.getNpcTemplate().get_size().equalsIgnoreCase("large")) {
                 add_dmg = _sting.getItem().getDmgLarge();
@@ -2230,7 +2262,7 @@ public class L1Attack {
         
         // Burning spirits, elemental fire, brave mental, BLOW_ATTACK 1.5 times skill effect and ivy part
         int skillCriticalBuff = _random.nextInt(100) + 1;
-        if (_weaponType != 20 && _weaponType != 62 && _weaponType2 != 17) { // bow gauntlet kiringku
+        if (_weaponType != 20 && _weaponType != GAUNTLET && _weaponType2 != 17) { // bow gauntlet kiringku
             if (_pc.hasSkillEffect(ELEMENTAL_FIRE) || _pc.hasSkillEffect(BRAVE_MENTAL) || _pc.hasSkillEffect(QUAKE)) {
             	if (skillCriticalBuff <= 12) {
             		if (_calcType == PC_PC) {
@@ -2275,7 +2307,7 @@ public class L1Attack {
             }
         }
         
-        if (_pc.hasSkillEffect(CYCLONE) && (_weaponType == 20 || _weaponType == 62 || _weaponType == 17)) {
+        if (_pc.hasSkillEffect(CYCLONE) && (_weaponType == 20 || _weaponType == GAUNTLET || _weaponType == 17)) {
 			int cycloneProcChance = 5;
 			if (_pc.getLevel() > 75) {
 				cycloneProcChance = cycloneProcChance + (_pc.getLevel() - 75); // 1% added at level 75 and above
@@ -2489,7 +2521,7 @@ public class L1Attack {
         dmg += rumtisAddDamage(); // Black light piercing additional damage treatment
 
         if (_pc.hasSkillEffect(BURNING_SLASH)) {
-            if (_weaponType != 20 && _weaponType != 62) {
+            if (_weaponType != 20 && _weaponType != GAUNTLET) {
                 dmg += 20;
                 _pc.sendPackets(new S_SkillSound(_targetNpc.getId(), 6591));
                 _pc.broadcastPacket(new S_SkillSound(_targetNpc.getId(), 6591));
@@ -2499,7 +2531,7 @@ public class L1Attack {
         for (L1DollInstance doll : _pc.getDollList()) {// Magic Doll Additional damage from dolls
             if (doll == null)
                 continue;
-            if (_weaponType != 20 && _weaponType != 62) {
+            if (_weaponType != 20 && _weaponType != GAUNTLET) {
                 dmg += doll.getDamageByDoll();
             }
             dmg += doll.attackPixieDamage(_pc, _targetNpc);
@@ -2537,14 +2569,14 @@ public class L1Attack {
         }
         if (!isNowWar) {
             if (_targetNpc instanceof L1PetInstance) {
-                dmg /= 8;
+                dmg /= 2;
             }
-            if (_targetNpc instanceof L1SummonInstance) {
-                L1SummonInstance summon = (L1SummonInstance) _targetNpc;
-                if (summon.isExsistMaster()) {
-                    dmg /= 8;
-                }
-            }
+//            if (_targetNpc instanceof L1SummonInstance) {
+//                L1SummonInstance summon = (L1SummonInstance) _targetNpc;
+//                if (summon.isExsistMaster()) {
+//                    dmg /= 2;
+//                }
+//            }
         }
 
         if (_targetNpc.hasSkillEffect(ICE_LANCE)) {
@@ -2626,17 +2658,16 @@ public class L1Attack {
 			dmg = _random.nextInt(_npc.getAbility().getTotalStr() / 2) + (_npc.getAbility().getTotalStr() * 2);
 
         if (_npc instanceof L1PetInstance) {
-            dmg += (lvl / 16); // +1 hit every 16 levels
+            dmg += (lvl / 12); // +1 dmg every 12 levels
             dmg += ((L1PetInstance) _npc).getDamageByWeapon();
         }
         dmg += _npc.getDmgup();
 
         if (isUndeadDamage()) {
-            // dmg *= 1.1;
         	dmg *= 1.10;
         }
         if (_npc.getMapId() == 1700 /* || _npc.getMapId()== ??? */) { // If it's a forgotten island
-            dmg *= 1.4; // 40% more damage on forgotten island?
+            dmg *= 1.45; // 40% more damage on forgotten island?
         }
         /* *//** 特定のマップのモンスターセゲ **//*
                                     * if (_npc.getMapId() == 30) { dmg = (dmg *
@@ -2895,13 +2926,13 @@ public class L1Attack {
         double dmg = 0;
 
         if (_npc instanceof L1PetInstance) {
-            dmg = _random.nextInt(_npc.getNpcTemplate().get_level()) + _npc.getAbility().getTotalStr() + 1;
-            dmg += (lvl / 8); // Pets hit LV16 additionally
+            dmg = _random.nextInt(_npc.getNpcTemplate().get_level()) + _npc.getAbility().getTotalStr();
+            dmg += (lvl / 8); // +1 dmg every 8 pet levels
             dmg += ((L1PetInstance) _npc).getDamageByWeapon();
         } else if (_npc instanceof L1SummonInstance) {
-            dmg = _random.nextInt(lvl) + _npc.getAbility().getTotalStr() + 5;
+            dmg = _random.nextInt(lvl) + _npc.getAbility().getTotalStr() + 10;
         } else {
-            dmg = _random.nextInt(lvl) + _npc.getAbility().getTotalStr() + 1;
+            dmg = _random.nextInt(lvl) + _npc.getAbility().getTotalStr();
         }
 
         if (isUndeadDamage()) {
@@ -2912,6 +2943,7 @@ public class L1Attack {
         }
 
         dmg = dmg * getLeverage() / 10;
+        //System.out.println("pet damage " + dmg);
 
         dmg -= calcNpcDamageReduction();
 
@@ -3111,7 +3143,7 @@ public class L1Attack {
         	damage += _random.nextInt(10) + 1;
         }
 
-        if (weapon != null && _weaponType != 20 && _weaponType != 62 && weapon.getHolyDmgByMagic() != 0
+        if (weapon != null && _weaponType != 20 && _weaponType != GAUNTLET && weapon.getHolyDmgByMagic() != 0
                 && (undead == 1 || undead == 3)) {
             damage += weapon.getHolyDmgByMagic();
         }
@@ -3418,7 +3450,7 @@ public class L1Attack {
                     Broadcaster.broadcastPacketExceptTargetSight(_target, new S_DoActionGFX(_targetId, ActionCodes.ACTION_Damage), _pc);
                 }
             }
-        } else if (_weaponType == 62 && _sting != null) { // Sting
+        } else if (_weaponType == GAUNTLET && _sting != null) { // Sting
             _pc.getInventory().removeItem(_sting, 1);
             if (_pc.getTempCharGfx() == 7967) {
                 _pc.sendPackets(new S_UseArrowSkill(_pc, _targetId, 7972, _targetX, _targetY, _isHit));
@@ -3468,7 +3500,7 @@ public class L1Attack {
         if (_weaponType == 20) {
             _pc.sendPackets(new S_AttackCritical(_pc, _targetId, _targetX, _targetY, _weaponType, _isHit));
             Broadcaster.broadcastPacket(_pc, new S_AttackCritical(_pc, _targetId, _targetX, _targetY, _weaponType, _isHit)); // I created a new one
-        } else if (_weaponType == 62 && _sting != null) {
+        } else if (_weaponType == GAUNTLET && _sting != null) {
 
             _pc.sendPackets(new S_AttackCritical(_pc, _targetId, _targetX, _targetY, _weaponType, _isHit));
             Broadcaster.broadcastPacket(_pc, new S_AttackCritical(_pc, _targetId, _targetX, _targetY, _weaponType, _isHit));
@@ -3836,7 +3868,7 @@ public class L1Attack {
     public boolean isShortDistance() {
         boolean isShortDistance = true;
         if (_calcType == PC_PC) {
-            if (_weaponType == 20 || _weaponType == 62 || _weaponType2 == 17 || _weaponType2 == 19
+            if (_weaponType == 20 || _weaponType == GAUNTLET || _weaponType2 == 17 || _weaponType2 == 19
                     || _pc.hasSkillEffect(L1SkillId.ARMOUR_BREAK)) {
                 isShortDistance = false;
             }
@@ -3901,9 +3933,7 @@ public class L1Attack {
     private int calcTitanDamage() {
         double damage = 0;
         L1ItemInstance weapon = null;
-        // Damage is calculated based on the following attack weapons
-        if (_targetPc.hasSkillEffect(L1SkillId.SLAYER) && _targetPc.getSecondWeapon() != null
-                && _targetPc.getSlayerSwich() == 1) {
+        if (_targetPc.hasSkillEffect(L1SkillId.SLAYER) && _targetPc.getSecondWeapon() != null && _targetPc.getSlayerSwich() == 1) {
             weapon = _targetPc.getSecondWeapon();
         } else {
             weapon = _targetPc.getWeaponSwap();
@@ -3911,6 +3941,7 @@ public class L1Attack {
         if (weapon != null) {
             damage = Math.round((weapon.getItem().getDmgLarge() + weapon.getEnchantLevel() + weapon.getItem().getDmgModifier()) * 1.5);
         }
+        //System.out.println("damage " + damage);
         return (int) damage;
     }
 
@@ -3983,13 +4014,13 @@ public class L1Attack {
         	value = 99;
         }
 
-        if (_weaponType == 20 || _weaponType == 62) { // For bows, see DEX value
-            value += CalcStat.calcBowHitup(_pc.getAbility().getTotalDex()) + CalcStat.calcDEXBonusHit(_pc.getAbility().getBaseDex());
+        if (_weaponType == BOW || _weaponType == GAUNTLET) { // For bows, see DEX value
+            value += CalcStat.calcDEXBonusHit(_pc.getAbility().getBaseDex());
         } else {
-            value += CalcStat.calcSTRHitUp(_pc.getAbility().getTotalStr()) + CalcStat.calcSTRBonusHit(_pc.getAbility().getBaseStr());
+            value += CalcStat.calcSTRBonusHit(_pc.getAbility().getBaseStr());
         }
 
-        if (_weaponType != 20 && _weaponType != 62) {
+        if (_weaponType != BOW && _weaponType != GAUNTLET) {
             value += _weaponAddHit + _pc.getHitup() + (_weaponEnchant / 2);
         } else {
             value += _weaponAddHit + _pc.getBowHitup() + (_weaponEnchant / 2);
